@@ -1,0 +1,106 @@
+.sign-box {
+    width: 100%;
+    max-width: 322px;
+    background: #fff;
+    -webkit-border-radius: 2px;
+    border-radius: 2px;
+    padding: 20px;
+    font-size: 1rem;
+    position: relative;
+    margin: 0 auto;
+
+	box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+	transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+}
+
+.sign-box .sign-avatar {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 10px
+}
+
+.sign-box .sign-avatar img {
+    display: block;
+    width: 100%;
+    -webkit-border-radius: 50%;
+    border-radius: 50%
+}
+
+.sign-box .sign-avatar.no-photo {
+    border: solid 2px #c5d6de;
+    text-align: center;
+    -webkit-border-radius: 50%;
+    border-radius: 50%;
+    line-height: 96px;
+    color: #c5d6de;
+    font-size: 3.125rem;
+    font-weight: 700
+}
+
+.sign-box .sign-title {
+    font-size: 1.25rem;
+    text-align: center;
+    margin: 0 0 15px;
+    line-height: normal
+}
+
+.sign-box .btn {
+    display: block;
+    min-width: 108px;
+    margin: 16px auto 12px;
+	border-radius:2px;
+	font-size:18px;
+
+	-webkit-transition: background-color 0.28s ease, color 0.28s ease, box-shadow 0.28s ease;
+	transition: background-color 0.28s ease, color 0.28s ease, box-shadow 0.28s ease;
+	box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 1px 5px 0 rgba(0, 0, 0, 0.12);
+}
+
+.sign-box .btn.sign-up {
+    margin-top: 18px
+}
+
+.sign-box .sign-note {
+    text-align: center;
+	margin-top:25px;
+	margin-bottom: 0px;
+}
+
+.sign-box a {
+    text-decoration: none;
+    color: #0082c6;
+    border-bottom: solid 1px transparent
+}
+
+.sign-box a:hover {
+    border-bottom-color: rgba(0, 130, 198, .5)
+}
+
+.sign-box .form-group {
+    margin-bottom: 12px;
+    zoom: 1
+}
+
+.sign-box .form-group:after,
+.sign-box .form-group:before {
+    content: " ";
+    display: table
+}
+.sign-box .form-group:after {
+    clear: both
+}
+.sign-box .form-group input {
+    border: 1px solid rgba(0,0,0,.2);
+	box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.05);
+}
+.sign-box .form-group input:focus {
+    border: 1px solid #00a8ff;
+}
+
+.sign-box .checkbox {
+    margin: 0;
+}
+.sign-box .checkbox label {
+    font-size: .95rem;
+	color:rgba(0,0,0,.7);
+}

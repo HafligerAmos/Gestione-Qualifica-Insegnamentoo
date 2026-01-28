@@ -1,0 +1,238 @@
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\Auth\EnDecrypt;
+use \App\Models\Allievi;
+use \App\Models\Docenti;
+use \App\Models\Admin;
+use Auth;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Validator;
+
+class LoginController extends Controller
+{
+    use AuthenticatesUsers;
+    /*
+    |--------------------------------------------------------------------------
+    | Login Controller
+    |--------------------------------------------------------------------------
+    |
+    | This controller handles authenticating users for the application and
+    | redirecting them to your home screen. The controller uses a trait
+    | to conveniently provide its functionality to your applications.
+    |
+    */
+
+    /**
+     * Create a new controller instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware(['guest:docenti', 'guest:allievi', 'guest:admin', 'guest:segretarie'])->except(['logout', 'restore']);
+    }
+
+    /**
+     * Mostro il form di login
+     * @return mixed
+     */
+    public function showLoginForm(){
+        return view('auth.login');
+    }
+
+	public function url_get_contents ($Url) {
+	    if (!function_exists('curl_init')){
+	        die('CURL is not installed!');
+	    }
+	    $ch = curl_init();
+	    curl_setopt($ch, CURLOPT_URL, $Url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+	    $output = curl_exec($ch);
+	    curl_close($ch);
+	    return $output;
+	}
+
+    /**
+     * Eseguo il login tramite l'LDAP.
+     * @param Request $request
+     * @return mixed
+     */
+	public function login(Request $request){
+		// Validates the request
+		$utente = $request->validate([
+			'name' => 'bail|required|string|min:0',
+			'password' => 'bail|required|string|min:0',
+		]);
+
+		$ed = new EnDecrypt;
+		// Salvo l'indirizzo del server LDAP
+		$host = "http://212.117.109.242:1935/autenticami_esterno_2016.php";
+		// Salvo l'username passato dal form di login
+		$username = $ed->Encrypt_Text($utente['name']);
+		// Salvo la password passata dal form di login
+		$password = $ed->Encrypt_Text($utente['password']);
+		$risultato= file_get_contents($host.'?u='.$username.'&p='.$password."&chi=cpt", false, stream_context_create([
+			'http'=>
+			    [
+			        'timeout' => 600,  //1200 Seconds is 20 Minutes
+			    ]
+			])
+		);
+		dd($risultato);
+
+		// Se è un docente che esiste nel db e quindi ha l'accesso consentito
+        if(!is_null($docente = Docenti::where('username', $utente['name'])->first())){
+            // Eseguo l'autenticazione con il guard dei docenti
+            Auth::guard('docenti')->login($docente);
+            // Salvo nella sessione il guard corrente
+            session()->put('guard', 'docenti');
+        // Se è un allievo che esiste nel db e quindi ha l'accesso consentito
+        } else if(!is_null($allievo = Allievi::where('username', $utente['name'])->first())){
+            // Eseguo l'autenticazione con il guard degli allievi
+            Auth::guard('allievi')->login($allievo);
+            // Salvo nella sessione il guard corrente
+            session()->put('guard', 'allievi');
+        } else {
+            // Valido se l'utente che vuole accedere è un amministratore
+            $admin_validation = Validator::make($request->all(), [
+                'name' => 'bail|required|string|email|exists:admins,email',
+            ]);
+            // Valido se l'utente che vuole accedere è una segretaria
+            $segretaria_validation = Validator::make($request->all(), [
+                'name' => 'bail|required|string|email|exists:segretarie,email',
+            ]);
+            // Se non è un amministratore nè una segretaria
+            if($admin_validation->fails() && $segretaria_validation->fails())
+                // Ritorno indietro dando l'errore dell'accesso invalido
+                return redirect()->back()->withErrors(['L\'accesso è invalido']);
+            // Faccio un tentativo di autenticazione
+            // Se è un amministratore
+            if(!$admin_validation->fails() &&
+                Auth::guard('admin')->attempt(['email' => $utente['name'], 'password' => $utente['password']])){
+                // Salvo nella sessione il guard corrente
+                session()->put('guard', 'admin');
+            // Se è una segretaria
+            } else if(!$segretaria_validation->fails() &&
+                Auth::guard('segretarie')->attempt(['email' => $utente['name'], 'password' => $utente['password']])){
+                // Salvo nella sessione il guard corrente
+                session()->put('guard', 'segretarie');
+            }
+             else
+                // Ritorno indietro dando l'errore dell'accesso invalido
+                return redirect()->back()->withErrors(['L\'accesso è invalido']);
+        }
+		// Ritorno ai sondaggi
+		return redirect()->route('pannello.home');
+
+
+		//dd($host.'?u='.$username.'&p='.$password."&chi=cpt");
+		// PROD service authenticate user on LDAP CPT
+		$risultato= $this->url_get_contents($host.'?u='.$username.'&p='.$password."&chi=cpt");
+		dd($risultato);
+
+		parse_str($risultato, $ris);
+		$u =$ris['username'];
+		$p = $ris['username'];
+		$a = $ris['appartenenza'];
+		$e = $ris['email'];
+
+		if(strlen($e)!=0){
+			$this->creaUtenteLocale($u, $p, $e, $a);
+			$user = JUser::getInstance($u); // Bring this in line with the rest of the system
+			$response->email = $user->email;
+			$response->status = JAuthentication::STATUS_SUCCESS;
+		}elseif (strlen($email)!=0){
+			$user = JUser::getInstance($u); // Bring this in line with the rest of the system
+			$response->id  = $user->id;
+			$response->email = $email;
+			$response->status = JAuthentication::STATUS_SUCCESS;
+			$response->groups = self::ottieniGruppi($a);
+			//JLog::add('user id da utilizzare:'.$user->id, JLog::INFO, 'ssoLog');
+		}
+		else{
+			$app = JFactory::getApplication();
+			$message = "Email non presente nel sistema. Effettua la registrazione per accedere all'area riservata.";
+			$urlRedirect = JRoute::_(JURI::base().'index.php?option=com_users&view=registration');
+			JLog::add('redirect to:'.$urlRedirect, JLog::INFO, 'ssoLog');
+			$response->status = JAuthentication::STATUS_DENIED;
+			$app->redirect($urlRedirect, $message);
+		}
+
+		// Riporto alla pagina dei sondaggi
+		return redirect()->route('valutazione.mie');
+
+		// Instanzio una connessione all'LDAP
+		$connection = ldap_connect($hostname);
+		// Imposto un opzione per il controllo
+		// della versione del protocollo
+	    ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
+	    ldap_set_option($connection, LDAP_OPT_REFERRALS, 0);
+		// Facciamo il bind al server LDAP
+		$bind = ldap_bind($connection, $username, $password);
+		dd($bind);
+		// Se è andato a buon fine
+		if ($bind) {
+			// Ritorno alla pagina di login
+			return redirect()->route('login')->withErrors(['Accesso accettato!']);
+			/*
+			$filter="(sAMAccountName=$username)";
+			$result = ldap_search($ldap,"dc=MYDOMAIN,dc=COM",$filter);
+			ldap_sort($ldap,$result,"sn");
+			$info = ldap_get_entries($ldap, $result);
+			for ($i=0; $i<$info["count"]; $i++)
+			{
+				if($info['count'] > 1)
+					break;
+				echo "<p>You are accessing <strong> ". $info[$i]["sn"][0] .", " . $info[$i]["givenname"][0] ."</strong><br /> (" . $info[$i]["samaccountname"][0] .")</p>\n";
+				echo '<pre>';
+				var_dump($info);
+				echo '</pre>';
+				$userDn = $info[$i]["distinguishedname"][0];
+			}
+			@ldap_close($ldap);*/
+		}
+		// Ritorno alla pagina di login
+		return redirect()->route('login')->withErrors(['Nome utente o password sbagliato!']);
+	}
+
+    /**
+     * Cancello la sessione dell'utente.
+     * @return mixed
+     */
+	public function logout(){
+        // Faccio il logout
+        Auth::guard(session('guard'))->logout();
+        // Torno alla home
+        return redirect()->route('home');
+    }
+
+    /**
+     * Ripristina un utente amministratore in caso
+     * che non ci fosse più un accesso al pannello.
+     * @param string $code
+     * @return mixed
+     */
+    public function restore(string $code){
+        // Se il codice è uguale a quello configurato nel file .env
+        if($code === env('ADMIN_RESTORE_CODE')){
+            // Creo il nuovo amministratore
+            if(is_null(Admin::where('email', env('ADMIN_RESTORE_EMAIL'))->first())){
+                // Creo l'amministratore
+                Admin::create([
+                    'email' => env('ADMIN_RESTORE_EMAIL'),
+                    'nome' => env('ADMIN_RESTORE_NAME'),
+                    'password' => bcrypt(env('ADMIN_RESTORE_PASSWORD')),
+                ]);
+                // Ritorno al login
+                return redirect()->route('login');
+            }
+        }
+        // Ritorno alla home
+        return redirect()->route('home');
+    }
+}
